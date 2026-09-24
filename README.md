@@ -81,3 +81,46 @@ bar uses Engle-Granger critical values, not plain ADF ones) and
 
 v0.1.0 — cointegration screening, pair analysis, z-score signals, spread
 backtester, CLI, and agent/backtest/strategy adapters. See `CHANGELOG.md`.
+
+## The maths
+
+**What you learn.** Which stock pairs move together *in the strong sense* —
+not just correlated, but cointegrated, so their spread wobbles around a
+fixed mean instead of wandering off. For each pair you get the hedge ratio,
+the half-life of a dislocation, and a live z-score that says "long the
+spread", "short the spread", or "flat".
+
+**Why it matters.** Correlation is cheap and treacherous: two stocks can be
+95% correlated and still drift apart forever, which is exactly how naive
+pairs trades blow up. Cointegration tests the tradable claim — stationarity
+of the spread — and the hedge ratio turns it into a market-neutral position.
+
+**The maths.**
+
+- *Engle-Granger two-step*: (1) OLS cointegrating regression A_t = α + β·B_t
+  + ε_t — β is the hedge ratio, residuals ε are the spread; (2) ADF test on
+  ε: Δε_t = α + γ·ε_{t-1} + Σᵢ δᵢ·Δε_{t-i} + u_t, rejecting the unit-root null
+  on a sufficiently negative t-stat of γ. Augmentation lag chosen by AIC
+  (Schwert's rule).
+- *Critical values*: the stricter Engle-Granger values for 2 variables with
+  a constant (5%: −3.34, vs −2.86 for plain ADF) — because β is estimated,
+  residuals look more stationary than they are, and plain ADF over-rejects.
+- *Half-life*: from Δs_t = a + λ·s_{t-1}, half-life = −ln(2)/λ bars; λ ≥ 0
+  means no mean reversion and a poor z-score candidate.
+- *Signals*: rolling causal z-score of the spread — enter at |z| ≥ 2.0 (long
+  spread when z ≤ −2, short when z ≥ +2), exit at |z| ≤ 0.5; opposite entry
+  flips the position.
+- *Backtest*: P&L = position × Δspread in unit spread positions, with
+  optional per-side costs; reports total return, annualized Sharpe, max
+  drawdown, win rate and profit factor.
+
+**Honest limitations.**
+
+- The correlation pre-filter is a heuristic and can miss cointegrated pairs
+  that don't show high log-price correlation.
+- β is assumed constant over the lookback — regime breaks invalidate old
+  hedges; re-estimate on rolling windows for live use.
+- Asymptotic EG critical values with no finite-sample correction: marginal
+  rejections on short lookbacks deserve skepticism.
+- Screening many pairs and backtesting the winners overstates expected
+  performance — walk-forward validation is the honest next step.
